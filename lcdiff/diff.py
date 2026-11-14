@@ -589,7 +589,7 @@ def _sanitise(text):
 
 
 def format_text(findings, title="Living Contract Diff", not_observed=None,
-                endpoint_samples=None):
+                endpoint_samples=None, accepted=None):
     lines = [title, "=" * len(title)]
     if endpoint_samples:
         lines.append("Endpoint sample sizes (JSON responses per status):")
@@ -602,6 +602,15 @@ def format_text(findings, title="Living Contract Diff", not_observed=None,
         lines.append(f"[{f['severity'].upper()}] {f['code']}  "
                      f"{_sanitise(f['endpoint'])}  field={_sanitise(f['field'] or '<root>')}")
         lines.append(f"    evidence: {_sanitise(repr(f['evidence']))}")
+    if accepted:
+        lines.append("Accepted drift (suppressed by the ledger; "
+                     "does not affect exit code):")
+        for f in accepted:
+            lines.append(f"  [ACCEPTED] {f['code']}  "
+                         f"{_sanitise(f['endpoint'])}  "
+                         f"field={_sanitise(f['field'] or '<root>')}")
+            lines.append(f"    reason: "
+                         f"{_sanitise(f.get('accepted_reason', ''))}")
     if not_observed:
         lines.append("Not observed in traffic (not diffed, does not affect exit code):")
         for item in not_observed:

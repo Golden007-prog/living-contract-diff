@@ -11,6 +11,10 @@ inputs:
     description: "Python version to use"
     required: false
     default: "3.12"
+  ledger:
+    description: "Optional path to an accepted-drift ledger JSON (relative to the consumer workspace); accepted findings are reported but do not fail the run"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -27,8 +31,12 @@ runs:
         PYTHONPATH: ${{ github.action_path }}
       run: |
         set +e
+        ledger_args=()
+        if [ -n "${{ inputs.ledger }}" ]; then
+          ledger_args=(--ledger "${{ inputs.ledger }}")
+        fi
         python3 -m lcdiff diff --baseline "${{ inputs.baseline }}" \
-          --spec "${{ inputs.spec }}" --format text | tee /tmp/lcd-report.txt
+          --spec "${{ inputs.spec }}" --format text "${ledger_args[@]}" | tee /tmp/lcd-report.txt
         code=${PIPESTATUS[0]}
         { echo "## Living Contract Diff"; echo '```'; cat /tmp/lcd-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         exit $code

@@ -103,10 +103,46 @@ python3 -m lcdiff diff --baseline baseline.json --spec openapi.json --format jso
 #   --ignore-endpoint 'GET /health' --ignore-endpoint '*/metrics'
 #                                exclude endpoints by glob (repeatable; matched
 #                                against "METHOD /path" and the path template)
+#   --ledger ledger.json         accepted-drift ledger (see below)
 
 # Bonus: baseline vs baseline
 python3 -m lcdiff diff-baseline --old baseline.old.json --new baseline.json
 ```
+
+## Accepted drift: the ledger
+
+Some drift is real but tolerated — a field the spec demands that the
+API has never sent and the team has agreed to live with. Record it in
+an **accepted-drift ledger** instead of letting it fail every CI run:
+
+```bash
+# 1. Run a diff and save the JSON report
+python3 -m lcdiff diff --baseline baseline.json --spec openapi.json \
+    --format json --out report.json
+# 2. Accept everything in that report, with a reason (review first!)
+python3 -m lcdiff accept --report report.json \
+    --reason "reviewed: zip has been optional in practice since 2025" \
+    --out ledger.json
+# 3. Future diffs suppress accepted findings (both diff modes)
+python3 -m lcdiff diff --baseline baseline.json --spec openapi.json \
+    --ledger ledger.json
+```
+
+A finding is accepted only when its **(endpoint, code, field)**
+identity matches a ledger entry exactly — never evidence (counts
+change between runs; an acceptance keyed on them would silently
+lapse). Accepted findings are still printed, in their own section
+with their reasons, and are listed under `accepted` in the JSON
+report; they never affect the exit code. New drift on the same
+endpoint — a different field, or a different finding code — is
+reported loudly as usual. Removing an entry from the ledger (it's a
+plain JSON file; edit it, or regenerate it with `accept --ledger`)
+makes the finding reappear on the next run. The ledger is validated
+strictly at load: a wrong version, a duplicate identity, an unknown
+key, or an acceptance without a reason is a clean error (exit 2),
+never a silent ignore. `accept` extends an existing ledger with
+`--ledger existing.json`; identities already recorded keep their
+original reason.
 
 Sample output (from `examples/real_world/`, a real local capture; note the sample-size guard at work — the capture has only 3 product responses, so the one deliberate drift is a warning):
 
@@ -141,7 +177,7 @@ Robustness: empty bodies, 204s and non-JSON bodies are skipped without crashing;
 python3 run_tests.py        # or: python3 -m unittest discover -s tests
 ```
 
-231 tests: the original 31 over a hand-built fixture corpus in `tests/fixtures/` (clean API, one planted fault per fixture — each finding type twice, in nested-object and array-item shapes — sparse fields, integer/float discipline, canary privacy, enum cap, 204/empty/non-JSON, `$ref`/`allOf`, malformed inputs) plus 67 fix-pass regression tests in `tests/test_fixpass.py` covering every adversarial-review finding (privacy caps, per-status diffing, slug aggregation, maps/free-form/variants, sample guard, strict error discipline, GitHub Action consumer simulation, …) plus 72 YAML tests in `tests/test_yaml.py`: an equivalence corpus (every JSON fixture spec has a YAML twin — 14/14 produce typed-identical structures and identical CLI reports/exit codes), scalar-typing pins, syntax-feature and named-rejection tests, safety-limit tests, and differential fuzz regressions against PyYAML (used in tests only as an oracle; nothing under `lcdiff/` imports it), plus 61 YAML fix-pass regression tests in `tests/test_yaml_fixpass.py` (one per finding from the three-reviewer attack on the YAML parser: empty sequence items, response-code smuggling, folded block scalars vs the PyYAML oracle, node-count honesty, timing bounds, depth boundary parity, …). See `ANALYSIS.md` for measured results and the fix-pass before/after.
+239 tests: the original 31 over a hand-built fixture corpus in `tests/fixtures/` (clean API, one planted fault per fixture — each finding type twice, in nested-object and array-item shapes — sparse fields, integer/float discipline, canary privacy, enum cap, 204/empty/non-JSON, `$ref`/`allOf`, malformed inputs) plus 67 fix-pass regression tests in `tests/test_fixpass.py` covering every adversarial-review finding (privacy caps, per-status diffing, slug aggregation, maps/free-form/variants, sample guard, strict error discipline, GitHub Action consumer simulation, …) plus 72 YAML tests in `tests/test_yaml.py`: an equivalence corpus (every JSON fixture spec has a YAML twin — 14/14 produce typed-identical structures and identical CLI reports/exit codes), scalar-typing pins, syntax-feature and named-rejection tests, safety-limit tests, and differential fuzz regressions against PyYAML (used in tests only as an oracle; nothing under `lcdiff/` imports it), plus 61 YAML fix-pass regression tests in `tests/test_yaml_fixpass.py` (one per finding from the three-reviewer attack on the YAML parser: empty sequence items, response-code smuggling, folded block scalars vs the PyYAML oracle, node-count honesty, timing bounds, depth boundary parity, …), plus 8 accepted-drift ledger tests in `tests/test_ledger.py` (suppression by identity, the accept round-trip, removal making a finding reappear, strict ledger validation). See `ANALYSIS.md` for measured results and the fix-pass before/after.
 
 ## GitHub Action
 

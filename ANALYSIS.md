@@ -97,7 +97,7 @@ Summary: 1 finding(s), 0 breaking, 1 warning   (exit 0)
 
 1. ~~YAML spec reader (leaf module beside `openapi.py`)~~ — **DONE 2026-11-11** (§11): `lcdiff/yamlmini.py`, a new leaf exactly as this ladder prescribed; the kernel was not touched.
 2. Live proxy / framework middleware capture → same baseline (new leaf beside `har.py`).
-3. CI mode polish: accepted-drift ledger (blessed findings suppressed by endpoint+field+code), drift history across baselines.
+3. CI mode polish: accepted-drift ledger (blessed findings suppressed by endpoint+field+code) — **DONE (unreleased)**: `lcdiff/ledger.py`, `--ledger` on both diff modes, and an `accept` command that records a JSON report's findings with a reason; identity is (endpoint, code, field) only, accepted findings are reported in their own section and never affect the exit code, and the ledger is strictly validated at load. Remaining here: drift history across baselines.
 4. More spec surface: `anyOf`/`oneOf`, request-body inference (separate privacy review), status-specific schemas.
 5. Team layer (later, per Round 4): shared baselines per service, third-party API watching.
 

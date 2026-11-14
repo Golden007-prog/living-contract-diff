@@ -1,4 +1,5 @@
-"""CLI: observe / diff / diff-baseline. Exit codes: 0 ok, 1 breaking, 2 error.
+"""CLI: observe / diff / diff-baseline / accept.
+Exit codes: 0 ok, 1 breaking, 2 error.
 
 Error discipline (D1): baselines are validated strictly at load (structure
 and required stat keys); a v1 baseline is rejected with an explicit
@@ -12,6 +13,7 @@ import sys
 from . import BASELINE_VERSION
 from . import har as har_mod
 from . import inference, openapi, diff as diff_mod
+from . import ledger as ledger_mod
 
 _FIELD_KEYS = {
     "present_count": int, "parent_count": int,
@@ -139,7 +141,8 @@ def _emit_report(args, report, findings, title):
     else:
         out = diff_mod.format_text(findings, title=title,
                                    not_observed=report.get("not_observed"),
-                                   endpoint_samples=report.get("endpoint_samples"))
+                                   endpoint_samples=report.get("endpoint_samples"),
+                                   accepted=report.get("accepted"))
     if args.out:
         try:
             with open(args.out, "w", encoding="utf-8") as f:
@@ -151,17 +154,28 @@ def _emit_report(args, report, findings, title):
     return None
 
 
+def _apply_ledger(args, findings):
+    """Split findings per the --ledger file, when one is given."""
+    if not getattr(args, "ledger", None):
+        return findings, []
+    ledger = ledger_mod.load_ledger(args.ledger)
+    return ledger_mod.apply_ledger(findings, ledger)
+
+
 def cmd_diff(args):
     baseline = _load_baseline(args.baseline)
     spec = openapi.load_spec(args.spec)
     docs = openapi.spec_endpoints(spec)
     result = diff_mod.diff_report(baseline, docs, threshold=args.required_threshold,
                                   ignore_endpoints=args.ignore_endpoint or ())
-    findings = result["findings"]
+    findings, accepted = _apply_ledger(args, result["findings"])
+    summary = diff_mod.summarise(findings)
+    summary["accepted"] = len(accepted)
     report = {"tool": "living-contract-diff", "findings": findings,
+              "accepted": accepted,
               "not_observed": result["not_observed"],
               "endpoint_samples": result["endpoint_samples"],
-              "summary": diff_mod.summarise(findings)}
+              "summary": summary}
     err = _emit_report(args, report, findings, "Living Contract Diff")
     if err is not None:
         return err
@@ -171,13 +185,53 @@ def cmd_diff(args):
 def cmd_diff_baseline(args):
     old = _load_baseline(args.old)
     new = _load_baseline(args.new)
-    findings = diff_mod.diff_baselines(old, new, threshold=args.required_threshold)
+    all_findings = diff_mod.diff_baselines(old, new,
+                                           threshold=args.required_threshold)
+    findings, accepted = _apply_ledger(args, all_findings)
+    summary = diff_mod.summarise(findings)
+    summary["accepted"] = len(accepted)
     report = {"tool": "living-contract-diff", "mode": "baseline-vs-baseline",
-              "findings": findings, "summary": diff_mod.summarise(findings)}
+              "findings": findings, "accepted": accepted,
+              "summary": summary}
     err = _emit_report(args, report, findings, "Baseline vs Baseline Diff")
     if err is not None:
         return err
     return 1 if report["summary"]["breaking"] > 0 else 0
+
+
+def cmd_accept(args):
+    """Record every finding in a JSON diff report as accepted drift."""
+    if not args.reason.strip():
+        return _err("--reason must not be empty: an acceptance must "
+                    "say why the drift is tolerated")
+    try:
+        with open(args.report, encoding="utf-8") as f:
+            report = json.load(f)
+    except FileNotFoundError:
+        return _err(f"report file not found: {args.report}")
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return _err(f"report unreadable or not JSON: {args.report}: {e}")
+    findings = report.get("findings") if isinstance(report, dict) else None
+    if not isinstance(findings, list):
+        return _err(f"report {args.report} has no 'findings' list — "
+                    "pass a report written by 'diff --format json'")
+    existing = ledger_mod.load_ledger(args.ledger) if args.ledger else None
+    from datetime import date
+    ledger = ledger_mod.ledger_from_findings(
+        findings, args.reason.strip(), existing,
+        accepted_at=date.today().isoformat())
+    before = len((existing or {}).get("accepted", []))
+    added = len(ledger["accepted"]) - before
+    if args.out:
+        try:
+            _write_json(args.out, ledger)
+        except OSError as e:
+            return _err(f"cannot write ledger to {args.out}: {e}")
+    else:
+        print(json.dumps(ledger, indent=2, ensure_ascii=False))
+    print(f"accepted {added} new finding(s); ledger now holds "
+          f"{len(ledger['accepted'])} acceptance(s)", file=sys.stderr)
+    return 0
 
 
 def _threshold(text):
@@ -215,6 +269,11 @@ def main(argv=None):
                     metavar="GLOB",
                     help="exclude endpoints matching this glob (repeatable), "
                          "matched against 'METHOD /path' and the path template")
+    pd.add_argument("--ledger", metavar="FILE",
+                    help="accepted-drift ledger: findings whose "
+                         "(endpoint, code, field) identity is accepted "
+                         "in the ledger are reported as accepted and "
+                         "do not affect the exit code")
     pd.set_defaults(fn=cmd_diff)
 
     pb = sub.add_parser("diff-baseline", help="diff two baselines against each other")
@@ -224,7 +283,23 @@ def main(argv=None):
     pb.add_argument("--out", help="report output path (default: stdout)")
     pb.add_argument("--required-threshold", type=_threshold, default=REQUIRED_DEFAULT,
                     help="presence threshold (default 0.99; 0 < x <= 1)")
+    pb.add_argument("--ledger", metavar="FILE",
+                    help="accepted-drift ledger (see 'diff --ledger')")
     pb.set_defaults(fn=cmd_diff_baseline)
+
+    pa = sub.add_parser("accept", help="record a JSON diff report's "
+                                       "findings as accepted drift in a ledger")
+    pa.add_argument("--report", required=True,
+                    help="a report written by 'diff --format json' "
+                         "(its active findings become acceptances)")
+    pa.add_argument("--reason", required=True,
+                    help="why this drift is tolerated (recorded per "
+                         "new acceptance; must not be empty)")
+    pa.add_argument("--ledger", metavar="FILE",
+                    help="existing ledger to extend (default: start a "
+                         "new ledger)")
+    pa.add_argument("--out", help="ledger output path (default: stdout)")
+    pa.set_defaults(fn=cmd_accept)
 
     args = p.parse_args(argv)
     try:

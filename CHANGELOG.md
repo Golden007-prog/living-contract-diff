@@ -4,6 +4,20 @@ All notable changes to Living Contract Diff, newest first. Versions are
 tagged on GitHub (`v0.2`, …) and consumers pin them as
 `uses: RakTikoo/living-contract-diff@v0.2`.
 
+## Unreleased
+
+- **Accepted-drift ledger.** `diff` and `diff-baseline` accept
+  `--ledger FILE`: findings whose (endpoint, code, field) identity is
+  recorded in the ledger are reported in an "Accepted drift" section
+  (JSON: under `accepted`, with the recorded reason) and never affect
+  the exit code; new drift is reported as loudly as before, and
+  removing an entry makes its finding reappear. A new `accept`
+  command records every finding of a JSON diff report into a ledger
+  with a `--reason` (extending an existing ledger with `--ledger`).
+  Ledgers are strictly validated at load — wrong version, duplicate
+  identity, unknown key, or an empty reason is a clean exit-2 error.
+  Tests 231 → 239.
+
 ## v0.2 — 2026-11-11
 
 First public release.
