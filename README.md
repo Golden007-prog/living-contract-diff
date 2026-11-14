@@ -1,5 +1,7 @@
 # Living Contract Diff
 
+[![Tests](https://github.com/RakTikoo/living-contract-diff/actions/workflows/tests.yml/badge.svg)](https://github.com/RakTikoo/living-contract-diff/actions/workflows/tests.yml)
+
 **Learn what your API actually returns from recorded traffic, then diff that observed contract against your OpenAPI spec to report drift.**
 
 ![Living Contract Diff terminal demo](living-contract-diff.gif)
