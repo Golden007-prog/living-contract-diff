@@ -1,0 +1,11 @@
+- id: living-contract-diff
+  name: Living Contract Diff
+  description: >-
+    Diff an observed API baseline against the OpenAPI spec and fail on
+    breaking drift. The hook takes no filenames: set your baseline and
+    spec paths in `args`, for example
+    args: [--baseline, contract/baseline.json, --spec, openapi.json]
+  entry: lcdiff diff
+  language: python
+  pass_filenames: false
+  always_run: true
