@@ -4,7 +4,7 @@ All notable changes to Living Contract Diff, newest first. Versions are
 tagged on GitHub (`v0.2`, …) and consumers pin them as
 `uses: RakTikoo/living-contract-diff@v0.2`.
 
-## Unreleased
+## v0.3 — 2026-11-14
 
 - **Accepted-drift ledger.** `diff` and `diff-baseline` accept
   `--ledger FILE`: findings whose (endpoint, code, field) identity is
