@@ -4,6 +4,22 @@ All notable changes to Living Contract Diff, newest first. Versions are
 tagged on GitHub (`v0.2`, …) and consumers pin them as
 `uses: RakTikoo/living-contract-diff@v0.2`.
 
+## Unreleased
+
+- **Packaging.** A `pyproject.toml` makes the tool pip-installable
+  (`pip install git+https://github.com/RakTikoo/living-contract-diff`,
+  or pipx) and adds an `lcdiff` console command, equivalent to
+  `python3 -m lcdiff`. Running from a clone is unchanged.
+- **Library API.** The pipeline functions are now re-exported from the
+  top-level `lcdiff` package (`load_har`, `build_baseline`, `load_spec`,
+  `spec_endpoints`, `diff_report`, `diff_baselines`, `summarise`,
+  `format_text`, and the ledger helpers), with a "Use as a library"
+  README section and a worked example. No behaviour change.
+- **Pre-commit hook.** A `.pre-commit-hooks.yaml` ships the diff as a
+  pre-commit hook (fails on breaking drift); see the README.
+- **Docs.** README gains an Install section on the first screen, and
+  the GitHub Action example now pins `@v0.3`.
+
 ## v0.3 — 2026-11-14
 
 - **Accepted-drift ledger.** `diff` and `diff-baseline` accept
