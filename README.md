@@ -12,6 +12,16 @@ APIs drift: the spec says one thing, the server does another, and nobody notices
 - Static analysis only — nothing from a HAR or a spec is ever executed.
 - Baseline format is **version 2** (2xx responses grouped by exact status code). Version 1 baselines are rejected at load with an explicit "regenerate with `lcdiff observe`" message — never silently misread.
 
+## Install
+
+```bash
+pip install git+https://github.com/RakTikoo/living-contract-diff
+# or, isolated, with pipx:
+pipx install git+https://github.com/RakTikoo/living-contract-diff
+```
+
+That gives you the `lcdiff` command. `python3 -m lcdiff` does exactly the same thing, and running from a clone works too — no build step, it is pure stdlib Python (3.9+).
+
 ## See it work
 
 ```bash
@@ -109,6 +119,39 @@ python3 -m lcdiff diff --baseline baseline.json --spec openapi.json --format jso
 python3 -m lcdiff diff-baseline --old baseline.old.json --new baseline.json
 ```
 
+## Use as a library
+
+The CLI is a thin wrapper over public functions, re-exported from the
+top-level `lcdiff` package — the same pipeline, in-process:
+
+```python
+from lcdiff import (build_baseline, diff_report, format_text, load_har,
+                    load_spec, spec_endpoints, summarise)
+
+# 1. Observe: build a baseline from recorded traffic.
+entries, skipped = load_har("examples/real_world/traffic.har")
+baseline = build_baseline(entries)
+
+# 2. Diff the observed contract against the spec.
+spec = load_spec("examples/real_world/api.openapi.json")
+docs = spec_endpoints(spec)
+result = diff_report(baseline, docs)
+
+print(summarise(result["findings"]))
+# {'total': 1, 'breaking': 0, 'warning': 1}
+print(format_text(result["findings"],
+                  not_observed=result["not_observed"],
+                  endpoint_samples=result["endpoint_samples"]))
+```
+
+`diff_report` returns `{"findings", "not_observed", "endpoint_samples"}`;
+each finding is a plain dict (endpoint, code, field, severity, evidence).
+Baseline-vs-baseline is `diff_baselines(old, new)`, and the
+accepted-drift ledger is `load_ledger` / `apply_ledger` /
+`ledger_from_findings`. Invalid inputs raise
+`lcdiff.IncompleteInputError` — the same strict validation the CLI
+enforces (a v1 baseline, a truncated HAR, a spec with duplicate keys).
+
 ## Accepted drift: the ledger
 
 Some drift is real but tolerated — a field the spec demands that the
@@ -184,13 +227,27 @@ python3 run_tests.py        # or: python3 -m unittest discover -s tests
 `action.yml` in this repo is a composite action that runs the diff in CI mode against a committed baseline + spec and appends the report to the job summary. It puts the action's own checkout on `PYTHONPATH` (via `github.action_path`) so the `lcdiff` package resolves, while your `baseline`/`spec` inputs stay relative to *your* workspace. Using it from another repo (once published):
 
 ```yaml
-- uses: RakTikoo/living-contract-diff@v0
+- uses: RakTikoo/living-contract-diff@v0.3
   with:
     baseline: contract/baseline.json
     spec: openapi.json
 ```
 
 A self-contained example workflow that needs no marketplace action is in `examples/workflow.yml` — it checks out this tool, runs `observe`-free CI diffing, fails on new breaking drift (exit 1), and writes the report to `GITHUB_STEP_SUMMARY`.
+
+## Pre-commit hook
+
+This repo ships a `.pre-commit-hooks.yaml`, so [pre-commit](https://pre-commit.com) can run the diff on every commit. The hook takes no filenames — point it at your committed baseline and spec:
+
+```yaml
+- repo: https://github.com/RakTikoo/living-contract-diff
+  rev: d5922049a614f0c13922e1d34834652ddd79e6ed
+  hooks:
+    - id: living-contract-diff
+      args: [--baseline, contract/baseline.json, --spec, openapi.json]
+```
+
+It fails the commit when the diff finds breaking drift (exit 1), and passes otherwise.
 
 ## License
 
