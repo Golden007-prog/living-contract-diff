@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "living-contract-diff"
+dynamic = ["version"]
+description = "Learn what your API actually returns from recorded traffic, then diff that observed contract against your OpenAPI spec and report the drift."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["api", "contract-testing", "drift", "har", "openapi"]
+authors = [{ name = "Rakshit Tikoo" }]
+
+[project.urls]
+Homepage = "https://github.com/RakTikoo/living-contract-diff"
+Repository = "https://github.com/RakTikoo/living-contract-diff"
+
+[project.scripts]
+lcdiff = "lcdiff.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "lcdiff.__version__" }
+
+[tool.setuptools]
+packages = ["lcdiff"]
