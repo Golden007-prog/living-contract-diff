@@ -12,6 +12,8 @@ APIs drift: the spec says one thing, the server does another, and nobody notices
 - Static analysis only — nothing from a HAR or a spec is ever executed.
 - Baseline format is **version 2** (2xx responses grouped by exact status code). Version 1 baselines are rejected at load with an explicit "regenerate with `lcdiff observe`" message — never silently misread.
 
+**First contribution?** Start with a [good first issue](https://github.com/RakTikoo/living-contract-diff/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+
 ## Install
 
 ```bash
